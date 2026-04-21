@@ -1,14 +1,23 @@
-import * as SQLite from 'expo-sqlite';
+import { Platform } from 'react-native';
 import { ALL_TABLES, SCHEMA_VERSION } from './schema';
 
-let db: SQLite.Database | null = null;
+let db: any = null;
+let isWebMode = false;
 
-export async function initializeDatabase(): Promise<SQLite.Database> {
+export async function initializeDatabase(): Promise<any> {
   if (db) {
     return db;
   }
 
-  db = await SQLite.openDatabaseAsync('momentum.db');
+  // On web, use a mock database
+  if (Platform.OS === 'web') {
+    isWebMode = true;
+    return Promise.resolve({});
+  }
+
+  // On native platforms, import and use SQLite
+  const SQLite = await import('expo-sqlite');
+  db = await SQLite.default.openDatabaseAsync('momentum.db');
 
   // Run migrations
   for (const sql of ALL_TABLES) {
@@ -21,7 +30,9 @@ export async function initializeDatabase(): Promise<SQLite.Database> {
   return db;
 }
 
-async function runMigrations(database: SQLite.Database): Promise<void> {
+async function runMigrations(database: any): Promise<void> {
+  if (isWebMode) return;
+
   // Add workout columns if they don't exist (migration from v1 to v2)
   const migrations = [
     `ALTER TABLE checkins ADD COLUMN workout_type TEXT CHECK (workout_type IN ('strength', 'run', 'cycling', 'hiit', 'yoga', 'swim', 'pilates', 'walk', 'other', NULL))`,
@@ -43,7 +54,10 @@ async function runMigrations(database: SQLite.Database): Promise<void> {
   }
 }
 
-export function getDatabase(): SQLite.Database {
+export function getDatabase(): any {
+  if (isWebMode) {
+    return {};
+  }
   if (!db) {
     throw new Error('Database not initialized. Call initializeDatabase() first.');
   }
@@ -55,6 +69,7 @@ export async function queryAll<T>(
   query: string,
   params?: any[]
 ): Promise<T[]> {
+  if (isWebMode) return [];
   const database = getDatabase();
   const result = await database.getAllAsync<T>(query, params);
   return result;
@@ -65,6 +80,7 @@ export async function queryOne<T>(
   query: string,
   params?: any[]
 ): Promise<T | null> {
+  if (isWebMode) return null;
   const database = getDatabase();
   const result = await database.getFirstAsync<T>(query, params);
   return result || null;
@@ -75,6 +91,7 @@ export async function execute(
   query: string,
   params?: any[]
 ): Promise<void> {
+  if (isWebMode) return;
   const database = getDatabase();
   await database.runAsync(query, params);
 }
@@ -84,6 +101,7 @@ export async function executeWithLastId(
   query: string,
   params?: any[]
 ): Promise<number> {
+  if (isWebMode) return 0;
   const database = getDatabase();
   const result = await database.runAsync(query, params);
   return result.lastInsertRowid;
@@ -91,8 +109,9 @@ export async function executeWithLastId(
 
 // Transaction helper
 export async function transaction<T>(
-  callback: (db: SQLite.Database) => Promise<T>
+  callback: (db: any) => Promise<T>
 ): Promise<T> {
+  if (isWebMode) return callback({}) as Promise<T>;
   const database = getDatabase();
   try {
     await database.execAsync('BEGIN TRANSACTION');
@@ -107,6 +126,7 @@ export async function transaction<T>(
 
 // Close database (rarely used, but available)
 export async function closeDatabase(): Promise<void> {
+  if (isWebMode) return;
   if (db) {
     await db.closeAsync();
     db = null;
@@ -115,6 +135,7 @@ export async function closeDatabase(): Promise<void> {
 
 // Clear all data (useful for testing/dev)
 export async function clearDatabase(): Promise<void> {
+  if (isWebMode) return;
   const database = getDatabase();
   await database.execAsync('DELETE FROM checkins');
   await database.execAsync('DELETE FROM insights');

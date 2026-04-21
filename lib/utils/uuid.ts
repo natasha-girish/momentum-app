@@ -1,8 +1,15 @@
-import { getRandomValues } from 'expo-crypto';
+import { Platform } from 'react-native';
 
 export function generateUUID(): string {
   const bytes = new Uint8Array(16);
-  getRandomValues(bytes);
+
+  // Use Web Crypto API on web, expo-crypto on native
+  if (Platform.OS === 'web') {
+    crypto.getRandomValues(bytes);
+  } else {
+    const { getRandomValues: getRandomValuesNative } = require('expo-crypto');
+    getRandomValuesNative(bytes);
+  }
 
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
