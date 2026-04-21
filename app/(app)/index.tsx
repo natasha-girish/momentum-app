@@ -1,0 +1,301 @@
+import { View, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { ScreenWrapper } from '@/components/common/screen-wrapper';
+import { ThemedText } from '@/components/theme/themed-text';
+import { Card } from '@/components/ui/card';
+import { RecommendationCard } from '@/components/recommendation/recommendation-card';
+import { CheckInButton } from '@/components/recommendation/checkin-button';
+import { WhyThisRead } from '@/components/recommendation/why-this-read';
+import { ActivityStrip } from '@/components/charts/activity-strip';
+import { WeightTrendChart } from '@/components/charts/weight-trend-chart';
+import { Spacing } from '@/constants/sizes';
+import { useRecommendation } from '@/lib/hooks/use-recommendation';
+import { useCheckins } from '@/lib/hooks/use-checkins';
+import { useUserProfile } from '@/lib/hooks/use-user-profile';
+import { useRecoveryScore } from '@/lib/hooks/use-recovery-score';
+import { getTodayISO } from '@/lib/utils/date';
+import { useAuth } from "@/lib/context/auth-context";
+import { analyzeWeightTrend } from '@/lib/engines/weight-analyzer';
+import { getRecoveryStatusColor } from '@/lib/engines/recovery-analyzer';
+
+export default function Dashboard() {
+  const router = useRouter();
+  const tint = useThemeColor({}, 'tint');
+  const muted = useThemeColor({}, 'icon');
+  const { user } = useAuth();
+  const { recommendation, loading: recLoading } = useRecommendation();
+  const { checkIns, loading: checkInsLoading } = useCheckins(30);
+  const { profile, loading: profileLoading } = useUserProfile();
+  const { recoveryScore, loading: recoveryLoading } = useRecoveryScore();
+
+  const loading = recLoading || checkInsLoading || profileLoading || recoveryLoading;
+  const todayCheckIn = checkIns.find(c => c.date === getTodayISO());
+
+
+  const styles = StyleSheet.create({
+    header: {
+      paddingHorizontal: Spacing.lg,
+      paddingVertical: Spacing.lg,
+      gap: Spacing.md,
+      paddingTop: Spacing.md,
+    },
+    greeting: {
+      gap: Spacing.xs,
+      paddingHorizontal: Spacing.xs,
+      flexShrink: 1,
+    },
+    date: {
+      fontSize: 11,
+      fontWeight: '600',
+      letterSpacing: 0.08,
+      color: muted,
+      textTransform: 'uppercase',
+    },
+    greetingText: {
+      fontSize: 28,
+      fontWeight: '400',
+      fontFamily: 'Lora',
+      letterSpacing: -0.01,
+      marginTop: Spacing.xs,
+      lineHeight: 36,
+    },
+    section: {
+      gap: Spacing.md,
+      marginBottom: Spacing.lg,
+      paddingHorizontal: Spacing.lg,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: Spacing.md,
+      paddingHorizontal: Spacing.xs,
+    },
+    sectionTitle: {
+      fontSize: 13,
+      fontWeight: '600',
+      letterSpacing: 0.08,
+      textTransform: 'uppercase',
+      color: muted,
+    },
+    floatingContainer: {
+      position: 'absolute',
+      bottom: 0,
+      left: Spacing.lg,
+      right: Spacing.lg,
+      zIndex: 10,
+      paddingBottom: Spacing.lg,
+    },
+    recoveryContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xl,
+      paddingVertical: Spacing.xs,
+    },
+    circleContainer: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      borderWidth: 6,
+      borderColor: '#3E5C6E',
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: '#F3F1ED',
+      flexShrink: 0,
+    },
+    circleText: {
+      fontSize: 28,
+      fontWeight: '600',
+      color: '#3E5C6E',
+      lineHeight: 32,
+    },
+    metricsColumn: {
+      flex: 1,
+      gap: Spacing.sm,
+    },
+    metricRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
+    },
+    metricIcon: {
+      width: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    metricLabel: {
+      fontSize: 14,
+      color: '#666',
+      flex: 1,
+    },
+    metricValue: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: '#1e293b',
+      minWidth: 50,
+      textAlign: 'right',
+    },
+  });
+
+  if (loading) {
+    return (
+      <ScreenWrapper scrollable={false}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={tint} />
+        </View>
+      </ScreenWrapper>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <ScreenWrapper scrollable={false}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ThemedText variant="headingM">Welcome!</ThemedText>
+          <ThemedText color="#666">Complete onboarding to get started.</ThemedText>
+        </View>
+      </ScreenWrapper>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, position: 'relative' }}>
+      <ScreenWrapper>
+        <View style={styles.header}>
+          <View style={styles.greeting}>
+            <ThemedText style={styles.date}>
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase()}
+            </ThemedText>
+            <ThemedText style={styles.greetingText}>
+              Morning, <ThemedText style={{ color: tint }}>{user?.username ? user.username.charAt(0).toUpperCase() + user.username.slice(1) : "User"}</ThemedText>.
+            </ThemedText>
+          </View>
+        </View>
+
+      {recommendation && checkIns.length > 0 && (
+        <View style={styles.section}>
+          <RecommendationCard recommendation={recommendation} variant="A" />
+          <Card shadow="md" padding="large" rounded="large" style={{ backgroundColor: '#FFFFFF' }}>
+            <WhyThisRead recommendation={recommendation} />
+          </Card>
+        </View>
+      )}
+
+      {checkIns.length === 0 && (
+        <View style={styles.section}>
+          <Card shadow="md" padding="large" rounded="large" style={{ backgroundColor: "#FFFFFF" }}>
+            <View style={{ gap: Spacing.lg, alignItems: "center" }}>
+              <MaterialCommunityIcons name="calendar-check-outline" size={48} color={tint} />
+              <ThemedText variant="headingS" style={{ textAlign: "center" }}>
+                Start Your First Check-In
+              </ThemedText>
+              <ThemedText variant="bodySmall" color={muted} style={{ textAlign: "center" }}>
+                Tell us about today—how you worked out, slept, and feel. It takes less than a minute.
+              </ThemedText>
+              <Pressable onPress={() => router.push("/(app)/check-in/weight")} style={{ marginTop: Spacing.md }}>
+                <View style={{ paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg, backgroundColor: tint, borderRadius: 12 }}>
+                  <ThemedText style={{ color: "#FFFFFF", fontWeight: "600" }}>Start Check-In</ThemedText>
+                </View>
+              </Pressable>
+            </View>
+          </Card>
+        </View>
+      )}
+      {/* 7-Day Activity - Always Visible */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <ThemedText style={styles.sectionTitle}>
+            7-DAY ACTIVITY
+          </ThemedText>
+          <ThemedText variant="bodySmall" color={muted}>
+            {checkIns.slice(0, 7).filter(c => c.workoutStatus === 'completed_workout').length} of 7 planned
+          </ThemedText>
+        </View>
+        <Card padding="large" shadow="sm" style={{ backgroundColor: '#FFFFFF' }}>
+          <ActivityStrip checkIns={checkIns.slice(0, 7)} />
+        </Card>
+      </View>
+
+            {checkIns.length > 0 && (
+        <>
+          {recoveryScore && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <ThemedText style={styles.sectionTitle}>
+                  RECOVERY SCORE
+                </ThemedText>
+                <Pressable onPress={() => router.push('/(app)/insights')}>
+                  <ThemedText variant="bodySmall" color={tint} weight="semibold">
+                    Details →
+                  </ThemedText>
+                </Pressable>
+              </View>
+              <Card padding="medium" shadow="sm" style={{ backgroundColor: '#FFFFFF' }}>
+                <View style={styles.recoveryContainer}>
+                  <View style={[styles.circleContainer, { borderColor: getRecoveryStatusColor(recoveryScore.status) }]}>
+                    <ThemedText style={[styles.circleText, { color: getRecoveryStatusColor(recoveryScore.status) }]}>
+                      {recoveryScore.score}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.metricsColumn}>
+                    <View style={styles.metricRow}>
+                      <View style={styles.metricIcon}>
+                        <MaterialCommunityIcons name="sleep" size={18} color="#666" />
+                      </View>
+                      <ThemedText style={styles.metricLabel}>Sleep</ThemedText>
+                      <ThemedText style={styles.metricValue}>{recoveryScore.components.sleep}</ThemedText>
+                    </View>
+                    <View style={styles.metricRow}>
+                      <View style={styles.metricIcon}>
+                        <MaterialCommunityIcons name="lightning-bolt" size={18} color="#666" />
+                      </View>
+                      <ThemedText style={styles.metricLabel}>Energy</ThemedText>
+                      <ThemedText style={styles.metricValue}>{recoveryScore.components.energy}</ThemedText>
+                    </View>
+                    <View style={styles.metricRow}>
+                      <View style={styles.metricIcon}>
+                        <MaterialCommunityIcons name="dumbbell" size={18} color="#666" />
+                      </View>
+                      <ThemedText style={styles.metricLabel}>Soreness</ThemedText>
+                      <ThemedText style={styles.metricValue}>{recoveryScore.components.soreness}</ThemedText>
+                    </View>
+                  </View>
+                </View>
+              </Card>
+            </View>
+          )}
+
+          {checkIns.length >= 5 && profile && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <ThemedText style={styles.sectionTitle}>
+                  WEIGHT TREND
+                </ThemedText>
+                <ThemedText variant="bodySmall" color={muted}>
+                  Last 30 days
+                </ThemedText>
+              </View>
+              <Card padding="medium" shadow="sm" style={{ backgroundColor: '#FFFFFF' }}>
+                <WeightTrendChart
+                  checkIns={checkIns}
+                  unit={profile.weightUnit}
+                  trend={analyzeWeightTrend(checkIns)}
+                />
+              </Card>
+            </View>
+          )}
+        </>
+      )}
+      </ScreenWrapper>
+
+      <View style={styles.floatingContainer}>
+        <CheckInButton
+          onPress={() => router.push('/(app)/check-in/weight')}
+          hasCheckedIn={!!todayCheckIn}
+        />
+      </View>
+    </View>
+  );
+}
