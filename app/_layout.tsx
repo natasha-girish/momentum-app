@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
+import { initWebDemo } from '@/lib/web-init';
 import {
   Lora_400Regular,
   Lora_700Bold,
@@ -81,6 +82,7 @@ export default function RootLayout() {
         // Only initialize database on native platforms
         const { Platform } = require('react-native');
         if (Platform.OS === 'web') {
+          await initWebDemo();
           setDbReady(true);
           return;
         }
