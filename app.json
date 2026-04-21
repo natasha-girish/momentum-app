@@ -39,7 +39,12 @@
           }
         }
       ],
-      "expo-sqlite",
+      [
+        "expo-sqlite",
+        {
+          "enableOnWeb": false
+        }
+      ],
       "expo-font"
     ],
     "experiments": {
